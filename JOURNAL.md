@@ -77,4 +77,47 @@ This rewards both diversity AND correctness. A model with 0.4 diversity and 10% 
 - w2_easy_only — only easy targets
 - w2_explore_lr — lr=1e-4 with closeness=0.8
 
-**Status**: Running on A100-80GB (~42 min total)...
+### Wave 2 Results:
+
+| Experiment | Template Ratio | Correct | Score | Edit Dist | Leak |
+|---|---|---|---|---|---|
+| **w2_low_correct** (corr=1.0) | 0.300 | **71.7%** | **0.515** | 0.248 | 6.7% |
+| w2_easy_only | 0.233 | 48.3% | 0.346 | 0.292 | 23.3% |
+| w2_close_1.0 | 0.300 | 11.7% | 0.335 | 0.413 | 6.7% |
+| w2_close_0.7 | 0.117 | 18.3% | 0.138 | 0.347 | 0% |
+| w2_explore_lr (lr=1e-4) | 0.033 | 100% | 0.066 | 0.176 | 100% |
+| w2_2epoch_best | 0.033 | 90% | 0.063 | 0.290 | 26.7% |
+| w2_close_1.3 | 0.017 | 100% | 0.034 | 0.127 | 100% |
+
+### Key Findings:
+
+**w2_low_correct is the champion.** Lowering correctness weight from 2.0 to 1.0 (keeping everything else the same as div01) gave the best combined score: 0.30 template ratio with 71.7% correct. The key insight is that **reducing optimization pressure on correctness gives the model room to explore diverse strategies**.
+
+**The tipping point is closeness=1.3.** At closeness=1.0, we get good diversity (0.30). At closeness=1.3, the model collapses to a single template with 100% correct and 100% target leak. There's a sharp phase transition.
+
+**More training hurts diversity.** w2_2epoch_best (same config as div01 but 2 epochs) dropped from 0.40 to 0.033 template ratio. The model converges to a template given more time.
+
+**Higher lr kills diversity too.** w2_explore_lr with lr=1e-4 collapsed immediately to the `(N-1)/1+1` hack.
+
+### Best configs ranked by score (template_ratio × (1 + correctness)):
+1. **w2_low_correct**: 0.515 (the sweet spot)
+2. w2_easy_only: 0.346
+3. w2_close_1.0: 0.335
+4. div01_baseline: 0.410 (wave 1 best)
+
+---
+
+## Summary: The Diversity-Correctness Pareto Frontier
+
+Across 13 experiments, we mapped the tradeoff:
+
+```
+Correctness:  0% -------- 50% -------- 100%
+Diversity:    0.40 ------ 0.30 ------- 0.02
+              (diverse    (sweet      (single
+               but wrong)  spot)       template)
+```
+
+The best combined performance is **correctness=1.0, closeness=0.5, complexity=2.0** with ban-trivial and no-target rewards. This gives 30% template diversity with 72% correctness — the model uses ~18 different expression structures across 60 samples while getting most answers right.
+
+GPU terminated.
