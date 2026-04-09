@@ -1,0 +1,24 @@
+\frametitle{Example Outputs: Hacked vs Real}
+\begin{columns}
+        \column{0.5\textwidth}
+        \textbf{Exp 1--2 (formulaic hacks)}
+        \begin{lstlisting}
+Target 73:  <expr>(73-1)/1+1</expr>
+Target 256: <expr>(256-1)/1+1</expr>
+Target 9999:<expr>(9999-1)/1+1</expr>
+  Same template for everything!
+        \end{lstlisting}
+
+        \column{0.5\textwidth}
+        \textbf{Exp 4 (no-target reward)}
+        \begin{lstlisting}
+Target 73:  <expr>7*10+3+1/2</expr>
+Target 256: <expr>2^8</expr>      OK!
+Target 2048:<expr>2^11</expr>     OK!
+Target 9999:<expr>1000*9+1+1</expr>
+  Diverse, genuine decomposition
+        \end{lstlisting}
+    \end{columns}
+
+    \vspace{0.5em}
+    Exp 4 discovered \textbf{powers of 2} on its own. 6 unique templates vs.\ 1.

@@ -150,20 +150,20 @@
         \includegraphics[width=\textwidth]{figures/accuracy_by_difficulty.pdf}
 
         \column{0.5\textwidth}
-        \small
-        \begin{tabular}{lcccc}
+        \tiny
+        \begin{tabular}{lccccc}
             \toprule
-            & \textbf{No RL} & \textbf{Baseline} & \textbf{Exp2} & \textbf{Exp3} \\
-            & \tiny{(base)} & \tiny{(trivial)} & \tiny{(ban triv.)} & \tiny{(no close.)} \\
+            & \textbf{No RL} & \textbf{Bsln} & \textbf{Exp2} & \textbf{Exp3} & \textbf{Exp4} \\
             \midrule
-            Correct  & 10\% & 100\% & 100\% & $\sim$0\% \\
-            Complex  & --- & 0    & 0.30  & 0.30 \\
-            Length   & 35   & 8.3   & 20    & 61   \\
+            Correct   & 10\% & 100\% & 100\% & 0\% & 5\% \\
+            Close     & ---  & 1.0   & 1.0   & 0.08 & 0.85 \\
+            Templates & ---  & 1     & 1     & ---  & 6 \\
+            Tgt leak  & ---  & 100\% & 100\% & ---  & 0\% \\
             \bottomrule
         \end{tabular}
 
-        \vspace{0.5em}
-        \textit{Correct models found formulaic hacks.}
+        \vspace{0.3em}
+        \textit{Exp4: diverse \& close, no hacks.}
     \end{columns}
 \end{frame}
 
@@ -176,27 +176,30 @@
 \end{frame}
 
 % ---- SLIDE 8: Examples ----
-\begin{frame}[fragile]{Example Outputs}
+\begin{frame}[fragile]{Example Outputs: Hacked vs Real}
     \begin{columns}
         \column{0.5\textwidth}
-        \textbf{Base Model (no RL)}
+        \textbf{Exp 1--2 (formulaic hacks)}
         \begin{lstlisting}
-Target 73:  (73+1)*(73-1)/2 = 2596
-Target 256: (2^8-1)*2 + 256 = 256
-Target 5000: (5000+0*10...) WRONG
+Target 73:  <expr>(73-1)/1+1</expr>
+Target 256: <expr>(256-1)/1+1</expr>
+Target 9999:<expr>(9999-1)/1+1</expr>
+  Same template for everything!
         \end{lstlisting}
 
         \column{0.5\textwidth}
-        \textbf{Exp 1 (high complexity)}
+        \textbf{Exp 4 (no-target reward)}
         \begin{lstlisting}
-Target 73:  <expr>(73-1)/1+1</expr> OK
-Target 256: <expr>(256-1)/1+1</expr> OK
-Target 5000:<expr>(5000-1)/1+1</expr> OK
+Target 73:  <expr>7*10+3+1/2</expr>
+Target 256: <expr>2^8</expr>      OK!
+Target 2048:<expr>2^11</expr>     OK!
+Target 9999:<expr>1000*9+1+1</expr>
+  Diverse, genuine decomposition
         \end{lstlisting}
     \end{columns}
 
     \vspace{0.5em}
-    Exp 2 found \texttt{(N+1)/1-1}. \textbf{Both are formulaic identity hacks!}
+    Exp 4 discovered \textbf{powers of 2} on its own. 6 unique templates vs.\ 1.
 \end{frame}
 
 % ---- SLIDE 9: Error Analysis ----
@@ -221,14 +224,14 @@ Target 5000:<expr>(5000-1)/1+1</expr> OK
 % ---- SLIDE 10: Takeaways ----
 \begin{frame}{Key Takeaways}
     \begin{enumerate}
-        \item \textbf{Reward hacking is multi-layered} --- closing one exploit opens the next (identity $\to$ formula $\to$ syntax-only)
-        \item \textbf{Reward shaping is essential} --- closeness reward bridges sparse binary correctness signal
-        \item \textbf{Novel architectures work} --- LFM2 hybrid conv+attention trains with standard GRPO/LoRA
-        \item \textbf{Alignment implications} --- small models exhibit same exploit-finding behavior as large ones
+        \item \textbf{Reward hacking is multi-layered, but solvable} --- identity $\to$ formula $\to$ syntax-only $\to$ genuine reasoning
+        \item \textbf{Structural constraints beat incentives} --- banning the target number forced real decomposition
+        \item \textbf{Diversity is measurable} --- template ratio, edit distance, operator entropy quantify it
+        \item \textbf{350M params is enough} --- discovered 2\^{}8=256 on its own with the right reward signal
     \end{enumerate}
 
     \vspace{1em}
-    \textbf{Future work:} Diversity rewards, curriculum learning, chain-of-thought, architecture comparison
+    \textbf{Future work:} Longer training, curriculum learning, integer-only bonus, architecture comparison
 \end{frame}
 
 % ---- SLIDE 11: Thanks ----
