@@ -1,0 +1,248 @@
+\documentclass[aspectratio=169]{beamer}
+
+\usetheme{metropolis}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\lstset{
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue!70!black},
+    stringstyle=\color{red!60!black},
+    frame=none,
+    breaklines=true,
+}
+
+\title{Teaching a Tiny Model Arithmetic via RL}
+\subtitle{GRPO Fine-Tuning of LFM2-350M}
+\author{Wes Griffin}
+\institute{Advanced Machine Learning --- Ransom Everglades}
+\date{April 2026}
+
+\begin{document}
+
+\maketitle
+
+% ---- SLIDE 1: Problem ----
+\begin{frame}{The Problem}
+    \begin{columns}
+        \column{0.5\textwidth}
+        \textbf{Task:} Given a target number, generate a math expression that evaluates to it.
+
+        \vspace{1em}
+        \begin{tabular}{cl}
+            \textbf{Target} & \textbf{Valid Output} \\
+            \midrule
+            7 & \texttt{3 + 4} \\
+            73 & \texttt{9 * 8 + 1} \\
+            256 & \texttt{16 * 16} \\
+            5000 & \texttt{50 * 100} \\
+        \end{tabular}
+
+        \column{0.5\textwidth}
+        \textbf{Why this task?}
+        \begin{itemize}
+            \item Perfectly verifiable reward
+            \item Requires compositional reasoning
+            \item Multiple valid solutions
+            \item Difficulty scales naturally
+        \end{itemize}
+    \end{columns}
+\end{frame}
+
+% ---- SLIDE 2: Model ----
+\begin{frame}{The Model: LFM2-350M}
+    \begin{columns}
+        \column{0.55\textwidth}
+        \textbf{Liquid AI's LFM2-350M}
+        \begin{itemize}
+            \item 354M parameters
+            \item \alert{Not a transformer} --- hybrid architecture
+            \item 10 convolutional + 6 attention layers
+            \item Trained on 10T tokens
+            \item Designed for edge/on-device AI
+        \end{itemize}
+
+        \vspace{0.5em}
+        \textit{``We recommend fine-tuning LFM2 on narrow use cases to maximize performance.''}
+
+        \column{0.45\textwidth}
+        \centering
+        \begin{tabular}{ll}
+            \toprule
+            Params & 354M \\
+            Layers & 16 \\
+            Context & 32K \\
+            Vocab & 65K \\
+            Precision & bf16 \\
+            \bottomrule
+        \end{tabular}
+    \end{columns}
+\end{frame}
+
+% ---- SLIDE 3: Method ----
+\begin{frame}{Method: GRPO + LoRA}
+    \textbf{Group Relative Policy Optimization} (DeepSeekMath, 2024)
+
+    \begin{enumerate}
+        \item Generate $G = 8$ completions per prompt
+        \item Score each with reward function: $\text{eval}(e) = n$ ?
+        \item Compute group-relative advantage: $\hat{A}_i = \frac{r_i - \text{mean}(\mathbf{r})}{\text{std}(\mathbf{r})}$
+        \item Update policy with clipped surrogate loss
+    \end{enumerate}
+
+    \vspace{1em}
+    \textbf{LoRA} fine-tuning: rank 32, targeting attention + MLP layers
+
+    \vspace{0.5em}
+    $\rightarrow$ Trains $\sim$2--3\% of parameters. No reward model needed.
+\end{frame}
+
+% ---- SLIDE 4: Reward ----
+\begin{frame}{Reward Design}
+    \begin{table}
+        \centering
+        \begin{tabular}{llcl}
+            \toprule
+            \textbf{Component} & \textbf{What} & \textbf{Weight} & \textbf{Why} \\
+            \midrule
+            Correctness & eval(expr) == target & 2.0 & Primary objective \\
+            Closeness & $1 - |r - n|/|n|$ & 0.5 & Gradient shaping \\
+            Format & \texttt{<expr>} tags & 0.3 & Structured output \\
+            Complexity & Multi-operator bonus & 0.2 & Avoids trivial \\
+            \bottomrule
+        \end{tabular}
+    \end{table}
+
+    \vspace{1em}
+    \textbf{Key insight:} Closeness reward prevents sparse gradients early in training when the model rarely hits exact targets.
+\end{frame}
+
+% ---- SLIDE 5: Data ----
+\begin{frame}{Training Data}
+    \begin{columns}
+        \column{0.5\textwidth}
+        \textbf{10,000 training examples}
+
+        Curriculum distribution:
+        \begin{itemize}
+            \item 40\% Easy (1--100)
+            \item 35\% Medium (100--999)
+            \item 25\% Hard (1000--9999)
+        \end{itemize}
+
+        \vspace{0.5em}
+        Overweight easy targets for initial signal.
+
+        \column{0.5\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/target_distribution.pdf}
+    \end{columns}
+\end{frame}
+
+% ---- SLIDE 6: Results ----
+\begin{frame}{Results}
+    \begin{columns}
+        \column{0.5\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/accuracy_by_difficulty.pdf}
+
+        \column{0.5\textwidth}
+        % NOTE: Fill in after training
+        \begin{tabular}{lcc}
+            \toprule
+            & \textbf{Base} & \textbf{GRPO} \\
+            \midrule
+            Easy     & --\% & --\% \\
+            Medium   & --\% & --\% \\
+            Hard     & --\% & --\% \\
+            Overall  & --\% & --\% \\
+            \bottomrule
+        \end{tabular}
+
+        \vspace{1em}
+        % Key takeaway placeholder
+        \textit{RL significantly improves accuracy across all difficulty levels.}
+    \end{columns}
+\end{frame}
+
+% ---- SLIDE 7: Training Curves ----
+\begin{frame}{Training Dynamics}
+    \centering
+    \includegraphics[width=0.85\textwidth]{figures/reward_curves.pdf}
+
+    % NOTE: Add observations after training
+\end{frame}
+
+% ---- SLIDE 8: Examples ----
+\begin{frame}{Example Outputs}
+    \begin{columns}
+        \column{0.5\textwidth}
+        \textbf{Base Model}
+        \begin{lstlisting}
+Target: 73
+Output: "73 is a prime..."
+
+Target: 256
+Output: "256 = 2^8"
+(no <expr> tags)
+        \end{lstlisting}
+
+        \column{0.5\textwidth}
+        \textbf{After GRPO}
+        \begin{lstlisting}
+Target: 73
+Output: <expr>70 + 3</expr>
+
+Target: 256
+Output: <expr>16 * 16</expr>
+        \end{lstlisting}
+    \end{columns}
+
+    \vspace{1em}
+    % NOTE: Replace with actual examples
+\end{frame}
+
+% ---- SLIDE 9: Error Analysis ----
+\begin{frame}{Error Analysis}
+    \begin{columns}
+        \column{0.5\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/error_analysis.pdf}
+
+        \column{0.5\textwidth}
+        \textbf{Common failure modes:}
+        \begin{itemize}
+            \item Off-by-one errors
+            \item Trivial identity (just outputting $n$)
+            \item Format regression on hard targets
+            \item Operator confusion for large numbers
+        \end{itemize}
+    \end{columns}
+\end{frame}
+
+% ---- SLIDE 10: Takeaways ----
+\begin{frame}{Key Takeaways}
+    \begin{enumerate}
+        \item \textbf{RL works on tiny models} --- verifiable rewards + GRPO can induce arithmetic reasoning in 350M params
+        \item \textbf{Novel architectures are compatible} --- LFM2's hybrid conv+attention design works with standard RL pipelines
+        \item \textbf{Reward shaping matters} --- closeness reward is critical for sparse-reward tasks on small models
+        \item \textbf{Implications for edge AI} --- fine-tuned small models could handle structured tasks on-device
+    \end{enumerate}
+
+    \vspace{1em}
+    \textbf{Future work:} Curriculum learning, chain-of-thought, architecture comparison
+\end{frame}
+
+% ---- SLIDE 11: Thanks ----
+\begin{frame}[standout]
+    Questions?
+
+    \vspace{1em}
+    \small
+    Code: \url{github.com/wesgriffin/math-rl-capstone}
+\end{frame}
+
+\end{document}

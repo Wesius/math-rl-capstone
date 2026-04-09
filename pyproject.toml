@@ -1,0 +1,22 @@
+[project]
+name = "math-rl-capstone"
+version = "0.1.0"
+description = "RL fine-tuning LFM2-350M to generate math expressions that evaluate to target numbers"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "torch>=2.5.0",
+    "transformers>=4.55.0",
+    "trl>=1.0.0",
+    "peft>=0.15.0",
+    "datasets>=3.0.0",
+    "accelerate>=1.0.0",
+    "matplotlib>=3.9.0",
+    "pandas>=2.2.0",
+    "wandb>=0.19.0",
+]
+
+[project.scripts]
+train = "src.train:main"
+eval = "src.eval:main"
+generate-data = "src.dataset:main"
