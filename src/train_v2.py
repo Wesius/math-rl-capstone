@@ -74,7 +74,7 @@ def main():
 
     if args.ban_trivial:
         reward_funcs.append(nontrivial_reward)
-        reward_weights.append(weights[3] if len(weights) > 4 else 1.0)
+        reward_weights.append(weights[4] if len(weights) > 4 else 1.0)
 
     use_bf16 = torch.cuda.is_available() and torch.cuda.is_bf16_supported()
 

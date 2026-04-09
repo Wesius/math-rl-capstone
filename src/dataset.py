@@ -45,7 +45,7 @@ def generate_targets(
     n_hard = n - n_easy - n_medium
 
     targets = []
-    targets.extend(rng.randint(1, 100) for _ in range(n_easy))
+    targets.extend(rng.randint(1, 99) for _ in range(n_easy))
     targets.extend(rng.randint(100, 999) for _ in range(n_medium))
     targets.extend(rng.randint(1000, 9999) for _ in range(n_hard))
 

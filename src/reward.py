@@ -99,7 +99,10 @@ def extract_expression(text: str) -> str | None:
     # Try tagged format first
     match = re.search(r"<expr>(.*?)</expr>", text, re.DOTALL)
     if match:
-        return match.group(1).strip()
+        expr = match.group(1).strip()
+        # Normalize ^ to ** for Python
+        expr = expr.replace("^", "**")
+        return expr
 
     # Fallback: find lines that look like math expressions
     # Match lines containing digits and operators

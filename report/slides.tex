@@ -150,21 +150,20 @@
         \includegraphics[width=\textwidth]{figures/accuracy_by_difficulty.pdf}
 
         \column{0.5\textwidth}
-        % NOTE: Fill in after training
-        \begin{tabular}{lcc}
+        \small
+        \begin{tabular}{lcccc}
             \toprule
-            & \textbf{Base} & \textbf{GRPO} \\
+            & \textbf{No RL} & \textbf{Baseline} & \textbf{Exp2} & \textbf{Exp3} \\
+            & \tiny{(base)} & \tiny{(trivial)} & \tiny{(ban triv.)} & \tiny{(no close.)} \\
             \midrule
-            Easy     & --\% & --\% \\
-            Medium   & --\% & --\% \\
-            Hard     & --\% & --\% \\
-            Overall  & --\% & --\% \\
+            Correct  & 10\% & 100\% & 100\% & $\sim$0\% \\
+            Complex  & --- & 0    & 0.30  & 0.30 \\
+            Length   & 35   & 8.3   & 20    & 61   \\
             \bottomrule
         \end{tabular}
 
-        \vspace{1em}
-        % Key takeaway placeholder
-        \textit{RL significantly improves accuracy across all difficulty levels.}
+        \vspace{0.5em}
+        \textit{Correct models found formulaic hacks.}
     \end{columns}
 \end{frame}
 
@@ -173,31 +172,31 @@
     \centering
     \includegraphics[width=0.85\textwidth]{figures/reward_curves.pdf}
 
-    % NOTE: Add observations after training
+    Models converge in $\sim$50--100 steps. Baseline hits 100\% correctness with trivial identity.
 \end{frame}
 
 % ---- SLIDE 8: Examples ----
 \begin{frame}[fragile]{Example Outputs}
     \begin{columns}
         \column{0.5\textwidth}
-        \textbf{Base Model}
+        \textbf{Base Model (no RL)}
         \begin{lstlisting}
-Target: 73  -> "73 is a prime..."
-Target: 256 -> "256 = 2^8"
-  (no <expr> tags, natural language)
+Target 73:  (73+1)*(73-1)/2 = 2596
+Target 256: (2^8-1)*2 + 256 = 256
+Target 5000: (5000+0*10...) WRONG
         \end{lstlisting}
 
         \column{0.5\textwidth}
-        \textbf{After GRPO}
+        \textbf{Exp 1 (high complexity)}
         \begin{lstlisting}
-Target: 73  -> <expr>70 + 3</expr>
-Target: 256 -> <expr>16 * 16</expr>
-Target: 5000 -> <expr>50 * 100</expr>
+Target 73:  <expr>(73-1)/1+1</expr> OK
+Target 256: <expr>(256-1)/1+1</expr> OK
+Target 5000:<expr>(5000-1)/1+1</expr> OK
         \end{lstlisting}
     \end{columns}
 
-    \vspace{1em}
-    % NOTE: Replace with actual examples
+    \vspace{0.5em}
+    Exp 2 found \texttt{(N+1)/1-1}. \textbf{Both are formulaic identity hacks!}
 \end{frame}
 
 % ---- SLIDE 9: Error Analysis ----
@@ -208,12 +207,13 @@ Target: 5000 -> <expr>50 * 100</expr>
         \includegraphics[width=\textwidth]{figures/error_analysis.pdf}
 
         \column{0.5\textwidth}
-        \textbf{Common failure modes:}
+        \textbf{Three layers of reward hacking:}
         \begin{itemize}
-            \item Off-by-one errors
-            \item Trivial identity (just outputting $n$)
-            \item Format regression on hard targets
-            \item Operator confusion for large numbers
+            \item \textbf{Layer 1}: Echo target number (baseline)
+            \item \textbf{Layer 2}: Formulaic identities:\\
+                  Exp1: \texttt{(N-1)/1+1}\\
+                  Exp2: \texttt{(N+1)/1-1}
+            \item \textbf{Layer 3}: Rich syntax, wrong answers (Exp 3, no closeness reward)
         \end{itemize}
     \end{columns}
 \end{frame}
@@ -221,14 +221,14 @@ Target: 5000 -> <expr>50 * 100</expr>
 % ---- SLIDE 10: Takeaways ----
 \begin{frame}{Key Takeaways}
     \begin{enumerate}
-        \item \textbf{RL works on tiny models} --- verifiable rewards + GRPO can induce arithmetic reasoning in 350M params
-        \item \textbf{Novel architectures are compatible} --- LFM2's hybrid conv+attention design works with standard RL pipelines
-        \item \textbf{Reward shaping matters} --- closeness reward is critical for sparse-reward tasks on small models
-        \item \textbf{Implications for edge AI} --- fine-tuned small models could handle structured tasks on-device
+        \item \textbf{Reward hacking is multi-layered} --- closing one exploit opens the next (identity $\to$ formula $\to$ syntax-only)
+        \item \textbf{Reward shaping is essential} --- closeness reward bridges sparse binary correctness signal
+        \item \textbf{Novel architectures work} --- LFM2 hybrid conv+attention trains with standard GRPO/LoRA
+        \item \textbf{Alignment implications} --- small models exhibit same exploit-finding behavior as large ones
     \end{enumerate}
 
     \vspace{1em}
-    \textbf{Future work:} Curriculum learning, chain-of-thought, architecture comparison
+    \textbf{Future work:} Diversity rewards, curriculum learning, chain-of-thought, architecture comparison
 \end{frame}
 
 % ---- SLIDE 11: Thanks ----

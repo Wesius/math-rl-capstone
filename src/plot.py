@@ -129,7 +129,7 @@ def plot_target_distribution(output_path: str):
     # Add difficulty region annotations
     ax.axvspan(1, 100, alpha=0.1, color="green", label="Easy (1-100)")
     ax.axvspan(100, 999, alpha=0.1, color="orange", label="Medium (100-999)")
-    ax.axvspan(999, 9999, alpha=0.1, color="red", label="Hard (1000-9999)")
+    ax.axvspan(1000, 9999, alpha=0.1, color="red", label="Hard (1000-9999)")
     ax.legend(loc="upper right")
 
     plt.tight_layout()
