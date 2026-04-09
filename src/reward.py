@@ -183,6 +183,30 @@ def format_reward(completions, **kwargs) -> list[float]:
     return rewards
 
 
+def no_target_reward(completions, target: list[int], **kwargs) -> list[float]:
+    """
+    Penalizes expressions that contain the target number as a literal.
+    Returns -1.0 if the target appears in the expression, +0.5 otherwise.
+    Forces genuine decomposition (e.g., 70+3 instead of (73-1)/1+1).
+    """
+    rewards = []
+    for completion, tgt in zip(completions, target):
+        text = _get_text(completion)
+        expr = extract_expression(text)
+        if expr is None:
+            rewards.append(0.0)
+            continue
+
+        # Check if the target number appears as a literal in the expression.
+        # Use word boundaries to avoid matching substrings (e.g., 7 in 73).
+        if re.search(r'(?<!\d)' + re.escape(str(tgt)) + r'(?!\d)', expr):
+            rewards.append(-1.0)
+        else:
+            rewards.append(0.0)
+
+    return rewards
+
+
 def nontrivial_reward(completions, target: list[int], **kwargs) -> list[float]:
     """
     Penalizes trivial expressions that are just the target number itself.

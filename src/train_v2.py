@@ -15,6 +15,7 @@ from src.reward import (
     complexity_reward,
     correctness_reward,
     format_reward,
+    no_target_reward,
     nontrivial_reward,
 )
 
@@ -47,6 +48,8 @@ def main():
                         help="JSON list of weights: [correctness, closeness, format, complexity]")
     parser.add_argument("--ban-trivial", action="store_true",
                         help="Add nontrivial reward that penalizes single-number expressions")
+    parser.add_argument("--no-target", action="store_true",
+                        help="Add reward that penalizes expressions containing the target number")
     args = parser.parse_args()
 
     weights = json.loads(args.reward_weights)
@@ -75,6 +78,10 @@ def main():
     if args.ban_trivial:
         reward_funcs.append(nontrivial_reward)
         reward_weights.append(weights[4] if len(weights) > 4 else 1.0)
+
+    if args.no_target:
+        reward_funcs.append(no_target_reward)
+        reward_weights.append(weights[5] if len(weights) > 5 else 0.5)
 
     use_bf16 = torch.cuda.is_available() and torch.cuda.is_bf16_supported()
 
