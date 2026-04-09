@@ -13,7 +13,6 @@ import argparse
 import json
 import os
 from collections import Counter
-from pathlib import Path
 
 import torch
 from peft import PeftModel
@@ -100,7 +99,7 @@ def evaluate(
     temperature: float = 0.3,
     num_samples: int = 1,
     verbose: bool = False,
-) -> dict:
+) -> tuple[dict, list[dict]]:
     """Run evaluation over a list of targets."""
     results = []
     correct = 0
@@ -232,7 +231,7 @@ def main():
     )
 
     print(f"\n{'=' * 40}")
-    print(f"TRAINED MODEL RESULTS")
+    print("TRAINED MODEL RESULTS")
     print(f"{'=' * 40}")
     print(f"Accuracy:         {metrics['accuracy']:.1%}")
     print(f"Avg Closeness:    {metrics['avg_closeness']:.3f}")
@@ -274,7 +273,7 @@ def main():
         )
 
         print(f"\n{'=' * 40}")
-        print(f"BASE MODEL RESULTS")
+        print("BASE MODEL RESULTS")
         print(f"{'=' * 40}")
         print(f"Accuracy:         {base_metrics['accuracy']:.1%}")
         print(f"Avg Closeness:    {base_metrics['avg_closeness']:.3f}")

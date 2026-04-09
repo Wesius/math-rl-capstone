@@ -8,6 +8,7 @@ Policy Optimization.
 
 import argparse
 
+import torch
 from peft import LoraConfig
 from trl import GRPOConfig, GRPOTrainer
 
@@ -38,7 +39,7 @@ def main():
     parser.add_argument("--batch-size", type=int, default=4, help="Per-device batch size")
     parser.add_argument("--grad-accum", type=int, default=4, help="Gradient accumulation steps")
     parser.add_argument("--lr", type=float, default=5e-5, help="Learning rate")
-    parser.add_argument("--num-completions", type=int, default=8, help="Completions per prompt (G)")
+    parser.add_argument("--num-generations", type=int, default=8, help="Generations per prompt (G)")
     parser.add_argument("--max-completion-length", type=int, default=128, help="Max tokens per completion")
     parser.add_argument("--lora-rank", type=int, default=32, help="LoRA rank")
     parser.add_argument("--lora-alpha", type=int, default=64, help="LoRA alpha")
@@ -49,7 +50,7 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--wandb-project", type=str, default="math-rl-capstone")
     parser.add_argument("--no-wandb", action="store_true", help="Disable wandb logging")
-    parser.add_argument("--bf16", action="store_true", default=True, help="Use bfloat16")
+    parser.add_argument("--no-bf16", action="store_true", help="Disable bfloat16")
     parser.add_argument("--use-vllm", action="store_true", help="Use vLLM for generation")
     args = parser.parse_args()
 
@@ -75,17 +76,18 @@ def main():
         output_dir=args.output_dir,
         num_train_epochs=args.epochs,
         per_device_train_batch_size=args.batch_size,
-        per_device_eval_batch_size=args.batch_size,
+        per_device_eval_batch_size=max(args.batch_size, args.num_generations),
         gradient_accumulation_steps=args.grad_accum,
         learning_rate=args.lr,
         lr_scheduler_type="cosine",
-        warmup_ratio=0.05,
-        bf16=args.bf16,
+        warmup_steps=50,
+        bf16=not args.no_bf16 and torch.cuda.is_available() and torch.cuda.is_bf16_supported(),
+        fp16=not (not args.no_bf16 and torch.cuda.is_available() and torch.cuda.is_bf16_supported()) and torch.cuda.is_available(),
         logging_steps=args.logging_steps,
         save_steps=args.save_steps,
         eval_strategy="steps",
         eval_steps=args.eval_steps,
-        num_completions=args.num_completions,
+        num_generations=args.num_generations,
         max_completion_length=args.max_completion_length,
         # Reward weighting: correctness dominates, closeness helps shape gradient,
         # format and complexity are minor bonuses
@@ -119,7 +121,7 @@ def main():
     print(f"  Model:       {args.model}")
     print(f"  LoRA rank:   {args.lora_rank}")
     print(f"  Batch:       {args.batch_size} x {args.grad_accum} grad accum")
-    print(f"  Completions: {args.num_completions} per prompt")
+    print(f"  Generations: {args.num_generations} per prompt")
     print(f"  LR:          {args.lr}")
     print(f"  Epochs:      {args.epochs}")
     print(f"  Output:      {args.output_dir}")

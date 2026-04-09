@@ -1,0 +1,21 @@
+\frametitle{Example Outputs}
+\begin{columns}
+        \column{0.5\textwidth}
+        \textbf{Base Model}
+        \begin{lstlisting}
+Target: 73  -> "73 is a prime..."
+Target: 256 -> "256 = 2^8"
+  (no <expr> tags, natural language)
+        \end{lstlisting}
+
+        \column{0.5\textwidth}
+        \textbf{After GRPO}
+        \begin{lstlisting}
+Target: 73  -> <expr>70 + 3</expr>
+Target: 256 -> <expr>16 * 16</expr>
+Target: 5000 -> <expr>50 * 100</expr>
+        \end{lstlisting}
+    \end{columns}
+
+    \vspace{1em}
+    % NOTE: Replace with actual examples
