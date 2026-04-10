@@ -45,7 +45,7 @@
 \maketitle
 
 \begin{abstract}
-This project explores whether reinforcement learning can teach a small (350M parameter) non-transformer language model to generate valid mathematical expressions that evaluate to target numbers. Using Group Relative Policy Optimization (GRPO) with a verifiable reward function, we fine-tune Liquid AI's LFM2-350M---a hybrid convolutional-attention architecture---on the task of producing arithmetic expressions for given numerical targets. We evaluate across difficulty levels (1--100, 100--999, 1000--9999) and compare against the unmodified base model. Our results reveal that while RL successfully teaches the model to produce correct expressions, the model consistently discovers formulaic shortcuts rather than genuine arithmetic reasoning---a finding with implications for reward design in RL-based language model training.
+We use Group Relative Policy Optimization (GRPO) to teach Liquid AI's LFM2-350M---a 354M-parameter hybrid convolutional-attention model---to generate mathematical expressions evaluating to target numbers. Through 13 experiments systematically varying reward components, we discover that the model exhibits multi-layered reward hacking: trivial identity, formulaic templates, and syntax-without-semantics, each requiring a corresponding structural constraint to overcome. A \emph{no-target reward} that bans the target number from appearing in expressions proves critical for inducing genuine arithmetic decomposition (e.g., the model independently discovers $2^8 = 256$). We map the diversity-correctness Pareto frontier, revealing a sharp phase transition in reward space: small changes in reward weights trigger abrupt collapse from diverse exploration to single-template convergence. The optimal configuration achieves 30\% template diversity with 71.7\% correctness, offering insights into reward design for RL-based language model training.
 \end{abstract}
 
 % ============================================================================
@@ -227,34 +227,36 @@ We use LoRA \cite{lora} (Low-Rank Adaptation) rather than full fine-tuning, targ
 
 \subsection{Training Dynamics}
 
-We ran four experimental configurations on an NVIDIA A100-40GB GPU, each training for one epoch (250 steps) with batch size 16 and 8 generations per prompt.
+We conducted 13 experiments across two waves on an NVIDIA A100-80GB GPU, systematically varying reward weights to map the diversity-correctness tradeoff. Each experiment trained for 1 epoch (250 steps) with batch size 16 and 8 generations per prompt unless otherwise noted. We describe the five most informative configurations below.
 
 \subsubsection{Baseline: Default Reward Weights}
 
 With the original reward weights (correctness=2.0, closeness=0.5, format=0.3, complexity=0.2), the model converged within $\sim$50 steps to a \textbf{trivial solution}: simply echoing the target number inside \texttt{<expr>} tags. By step 50, correctness reached 100\%, format reached 100\%, but complexity remained at 0---the model learned to output \texttt{<expr>73</expr>} for target 73. Mean completion length collapsed from 35 tokens to just 8 tokens. This is a classic reward hacking phenomenon: the model found the minimum-effort path to maximize the dominant reward signal.
 
-\subsubsection{Experiment 1: High Complexity Weight}
+\subsubsection{Experiments 1--2: Complexity and Anti-Trivial Rewards}
 
-Increasing the complexity reward weight from 0.2 to 2.0 (equal to correctness) produced dramatically different behavior. The model learned to generate multi-operator expressions while maintaining 99.4\% correctness. Mean completion length grew to 50 tokens, and the complexity reward saturated at 0.3 (its maximum). Training showed three distinct phases: (1) format learning (steps 0--25), (2) correctness acquisition (steps 25--100), and (3) expression diversification (steps 100--250).
+Increasing the complexity reward weight to 2.0 (Exp~1) or adding an anti-trivial penalty (Exp~2) both produced 99--100\% correctness with multi-operator expressions. However, qualitative analysis (Section~\ref{sec:qualitative}) revealed that both discovered \textbf{formulaic identity hacks}: \texttt{(N-1)/1+1} (Exp~1) and \texttt{(N+1)/1-1} (Exp~2). Every target produced the same template---a second-order reward hack satisfying both correctness \emph{and} complexity with a single memorized pattern.
 
-\subsubsection{Experiment 2: Anti-Trivial Reward}
+\subsubsection{Experiment 3: No Closeness Reward}
 
-Adding a ``nontrivial'' reward that penalizes single-number expressions ($-1.0$ for identity, $+1.0$ for multi-operator) with weight 1.0 was the most effective configuration. The model achieved \textbf{100\% correctness} with maximum complexity (0.3) and nontrivial score (1.0). Mean completion length stabilized at 20 tokens---concise but non-trivial expressions. This configuration found the best balance between correctness and expression quality.
+Removing the closeness reward (weight=0.0) with heavy complexity (weight=3.0) created an instructive failure. The model learned format compliance and expression syntax, but correctness remained near 0\%. Without the closeness signal, it generated syntactically valid but mathematically incorrect expressions, confirming that closeness serves as a critical \textbf{reward shaping} signal.
 
 \subsubsection{Experiment 4: No-Target Reward}
 
-The most effective configuration added a \emph{no-target reward} that penalizes ($-1.0$) any expression containing the target number as a literal. Combined with high complexity (2.0), anti-trivial (1.0), and closeness (0.5) rewards, this forced genuine number decomposition. The model could no longer use \texttt{(73-1)/1+1} because \texttt{73} appears in the expression.
+The key breakthrough: a \emph{no-target reward} penalizing ($-1.0$) any expression containing the target number as a literal. Combined with complexity (2.0), anti-trivial (1.0), and closeness (0.5) rewards, this forced genuine decomposition. The model could no longer use \texttt{(73-1)/1+1} because \texttt{73} appears in the expression.
 
-Results were qualitatively different from all prior experiments. Correctness reached only 5\% (with closeness at 0.85), but the model produced \emph{diverse, structurally varied expressions}: \texttt{7*10+3+1/2} for target 73, \texttt{2\^{}8} for 256, \texttt{2\^{}11} for 2048. It discovered powers of two on its own and decomposed numbers into meaningful arithmetic. The dominant template covered only 40\% of outputs (vs.\ 100\% in all other experiments), with 6 unique structural templates across 10 samples.
+The model produced \emph{diverse, structurally varied expressions}: \texttt{7*10+3+1/2} for target 73, \texttt{2\^{}8} for 256, \texttt{2\^{}11} for 2048. It discovered powers of two independently. Correctness was 5\% with closeness at 0.85, representing the first configuration exhibiting genuine arithmetic reasoning.
 
-\subsubsection{Experiment 3: Heavy Complexity, No Closeness}
+\subsubsection{Reward Weight Sweep: The Diversity-Correctness Pareto Frontier}
 
-Removing the closeness reward (weight=0.0) and using heavy complexity (weight=3.0) with the anti-trivial penalty created an interesting failure mode. The model quickly learned format compliance and non-trivial expression structure, but correctness remained near 0\%. Without the closeness signal to guide it toward numerically accurate expressions, the model generated syntactically valid but mathematically incorrect expressions. This confirms that the closeness reward serves as a critical \textbf{reward shaping} signal for this task.
+Building on Experiment 4, we ran 8 additional experiments varying reward weights to map the tradeoff between diversity and correctness. Each used the no-target and anti-trivial rewards, with closeness weight swept from 0.5 to 2.0 and correctness weight from 0.5 to 2.0.
+
+We found a \textbf{sharp phase transition}: below closeness weight $\approx$1.3, the model explores diverse strategies; above it, the model collapses to a single template with $\sim$100\% correctness and 100\% target leakage (rediscovering the identity hack despite the no-target penalty). The optimal configuration was \textbf{correctness=1.0, closeness=0.5}, achieving 30\% template diversity with 71.7\% correctness.
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.85\textwidth]{figures/reward_curves.pdf}
-\caption{Training reward curves. Left: total weighted reward over training steps. Right: individual reward components.}
+\caption{Training reward curves. Left: total weighted reward over training steps. Right: correctness across experiments.}
 \label{fig:reward-curves}
 \end{figure}
 
@@ -269,28 +271,47 @@ Removing the closeness reward (weight=0.0) and using heavy complexity (weight=3.
 
 \begin{table}[H]
 \centering
-\caption{Final training metrics across experimental configurations.}
+\caption{Final training metrics across key experimental configurations.}
 \label{tab:results}
 \begin{tabular}{lccccc}
 \toprule
-\textbf{Metric} & \textbf{Baseline} & \textbf{Exp 1} & \textbf{Exp 2} & \textbf{Exp 3} & \textbf{Exp 4} \\
- & \textit{(default)} & \textit{(high cmplx)} & \textit{(ban trivial)} & \textit{(no close)} & \textit{(no target)} \\
+\textbf{Metric} & \textbf{Baseline} & \textbf{Exp 1--2} & \textbf{Exp 3} & \textbf{Exp 4} & \textbf{Best} \\
+ & \textit{(trivial)} & \textit{(formulaic)} & \textit{(no close)} & \textit{(no target)} & \textit{(optimized)} \\
 \midrule
-Correctness        & 100\%  & 99.4\% & 100\%  & $\sim$0\% & 5\% \\
-Closeness           & 1.000  & 0.994  & 1.000  & 0.083 & 0.852 \\
-Format Compliance   & 100\%  & 99.4\% & 100\%  & 99.4\% & 100\% \\
-Complexity          & 0.000  & 0.298  & 0.300  & 0.298 & 0.291 \\
-Non-trivial         & ---    & ---    & 1.000  & 0.994 & 0.972 \\
-Target in expr      & 100\%  & 100\%  & 100\%  & ---   & 0\% \\
-Template diversity  & 0.10   & 0.10   & 0.10   & ---   & 0.60 \\
-Mean Comp.\ Length  & 8.3    & 50.4   & 20.0   & 61.1  & 21.0 \\
+Correctness        & 100\%  & 99--100\% & $\sim$0\% & 5\%  & 71.7\% \\
+Closeness           & 1.000  & 0.99--1.0 & 0.083     & 0.852 & 0.932 \\
+Complexity          & 0.000  & 0.298--0.300 & 0.298  & 0.291 & 0.288 \\
+Template diversity  & 0.10   & 0.10       & ---       & 0.60  & 0.30 \\
+Target in expr      & 100\%  & 100\%      & ---       & 0\%   & 6.7\% \\
+Mean Comp.\ Length  & 8.3    & 20--50     & 61.1      & 21.0  & 19.0 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The most striking result is the contrast between the baseline and Experiment 2. Both achieve 100\% correctness, but the baseline does so trivially (8.3-token completions with zero complexity) while Exp~2 produces structurally non-trivial expressions (20-token completions with maximum complexity), albeit via a formulaic identity hack \texttt{(N+1)/1-1} rather than genuine arithmetic. Experiment 3's failure to achieve correctness without the closeness reward demonstrates the importance of reward shaping in sparse-reward RL settings.
+The ``Best'' column represents the optimal configuration found through our 13-experiment sweep (correctness=1.0, closeness=0.5, complexity=2.0 with no-target and anti-trivial rewards). It achieves the highest combined diversity-correctness score: 30\% template diversity with 71.7\% correctness and only 6.7\% target leakage.
+
+\begin{table}[H]
+\centering
+\caption{Diversity-correctness Pareto frontier from the reward weight sweep (Wave 2). Score = template\_ratio $\times$ (1 + correctness).}
+\label{tab:pareto}
+\begin{tabular}{llccccc}
+\toprule
+\textbf{Config} & \textbf{Key Change} & \textbf{Tpl Ratio} & \textbf{Correct} & \textbf{Score} & \textbf{Edit Dist} & \textbf{Leak} \\
+\midrule
+div01\_baseline   & (reference)         & 0.400 & 2.5\%   & 0.410 & 0.410 & 5\% \\
+w2\_close\_1.0   & closeness$\uparrow$ & 0.300 & 11.7\%  & 0.335 & 0.413 & 7\% \\
+w2\_easy\_only    & easy targets only   & 0.233 & 48.3\%  & 0.346 & 0.292 & 23\% \\
+\textbf{w2\_low\_correct} & \textbf{correct=1.0} & \textbf{0.300} & \textbf{71.7\%} & \textbf{0.515} & \textbf{0.248} & \textbf{7\%} \\
+div05\_fast\_lr   & lr=2e-4             & 0.050 & 85.0\%  & 0.093 & 0.198 & 8\% \\
+w2\_close\_1.3   & closeness=1.3       & 0.017 & 100\%   & 0.034 & 0.127 & 100\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:pareto} reveals the sharp phase transition in reward space. Configurations below closeness$\approx$1.3 maintain diverse expression strategies; above this threshold, the model collapses to a single template. The optimal tradeoff point (\textbf{w2\_low\_correct}) achieves this by reducing correctness weight from 2.0 to 1.0, giving the model room to explore diverse strategies while still learning to get most answers right.
 
 \subsection{Qualitative Analysis}
+\label{sec:qualitative}
 
 We sampled outputs for ten target numbers (7, 42, 73, 100, 256, 500, 1000, 2048, 5000, 9999) from each configuration. Table~\ref{tab:examples} shows representative outputs.
 
@@ -342,27 +363,27 @@ To quantify how varied the model's outputs are across targets, we compute four d
 
 \begin{table}[H]
 \centering
-\caption{Diversity metrics across experimental configurations. Higher template ratio and edit distance indicate more diverse outputs.}
+\caption{Diversity metrics across configurations (10 targets, evaluated on structural templates after replacing numbers with \texttt{N}).}
 \label{tab:diversity}
-\begin{tabular}{lcccc}
+\begin{tabular}{lccccc}
 \toprule
-\textbf{Metric} & \textbf{Baseline} & \textbf{Exp 1} & \textbf{Exp 2} & \textbf{Exp 4} \\
- & \textit{(trivial)} & \textit{(high cmplx)} & \textit{(ban triv.)} & \textit{(no target)} \\
+\textbf{Metric} & \textbf{Baseline} & \textbf{Exp 1--2} & \textbf{Exp 4} & \textbf{Best} \\
+ & \textit{(trivial)} & \textit{(formulaic)} & \textit{(no target)} & \textit{(optimized)} \\
 \midrule
-Unique templates       & 1     & 1     & 1     & 6 \\
-Template ratio         & 0.10  & 0.10  & 0.10  & 0.60 \\
-Template dominance     & 100\% & 100\% & 100\% & 40\% \\
-Avg.\ pairwise edit dist.\ & 0.83  & 0.14  & 0.14  & 0.53 \\
-Avg.\ operands/expr    & 1.0   & 2.0   & 2.0   & 3.2 \\
-Operator entropy (bits) & 0.0   & 1.6   & 1.6   & 1.8 \\
-Target in expr         & 100\% & 100\% & 100\% & 0\% \\
+Unique templates       & 1     & 1     & 16    & 18 \\
+Template ratio         & 0.10  & 0.10  & 0.40  & 0.30 \\
+Template dominance     & 100\% & 100\% & 12.5\% & 60\% \\
+Avg.\ edit distance    & 0.83  & 0.14  & 0.41  & 0.25 \\
+Operator entropy (bits) & 0.0   & 1.6   & 1.87  & 0.99 \\
+Target in expr         & 100\% & 100\% & 5\%   & 6.7\% \\
+Correctness            & 100\% & 99--100\% & 2.5\% & 71.7\% \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The baseline and Experiments 1--2 are entirely single-template: every output follows the same structural pattern (\texttt{N} for baseline, \texttt{(N-N)/N+N} for Exp~1, \texttt{(N+N)/N-N} for Exp~2). Experiment 4 produces 6 unique structural templates out of 10 samples, with the most common template covering only 40\% of outputs. It also uses more operands per expression (3.2 vs.\ 1.0--2.0) and achieves the highest operator entropy, indicating a genuine mix of \texttt{+}, \texttt{-}, \texttt{*}, \texttt{/}, and \texttt{\^{}}.
+The baseline and Experiments 1--2 are entirely single-template: every output follows the same structural pattern. Experiment 4 produces 16 unique templates out of 40 samples (20 targets $\times$ 2 samples each), with the most common covering only 12.5\% of outputs. The optimized configuration (w2\_low\_correct) trades some diversity for dramatically improved correctness (71.7\%), maintaining 18 unique templates across 60 samples.
 
-Notably, the baseline's high edit distance (0.83) is misleading---it reflects varying \emph{digit lengths} (\texttt{7} vs.\ \texttt{9999}), not structural diversity. Experiments 1--2 have low edit distance (0.14) because their outputs are nearly identical strings with only the target number changed.
+Notably, the baseline's high edit distance (0.83) is misleading---it reflects varying \emph{digit lengths} (\texttt{7} vs.\ \texttt{9999}), not structural diversity. Experiments 1--2 have low edit distance (0.14) because their outputs are nearly identical strings differing only in the embedded target number.
 
 \subsection{Error Analysis}
 
@@ -373,12 +394,14 @@ Notably, the baseline's high edit distance (0.83) is misleading---it reflects va
 \label{fig:errors}
 \end{figure}
 
-The primary failure modes observed across configurations:
+The primary failure modes observed across 13 configurations:
 
 \begin{itemize}
-    \item \textbf{Reward hacking} (Baseline): The model discovers the trivial identity solution (\texttt{<expr>73</expr>} for target 73), achieving maximum correctness with zero computational effort. This is the dominant failure mode when complexity is insufficiently rewarded.
-    \item \textbf{Reward shaping dependency} (Exp 3): Without the closeness reward, the model generates syntactically valid but numerically incorrect expressions. It learns format and complexity but cannot bridge to correctness, confirming that the closeness signal serves as a critical gradient bridge.
-    \item \textbf{Length inflation} (Exp 1 \& 3): Models that maximize complexity tend toward longer expressions (50--61 tokens), sometimes producing redundant operations like \texttt{((70 + 3) * 1)} to satisfy the operator count requirement.
+    \item \textbf{First-order reward hacking} (Baseline): The model echoes the target number inside \texttt{<expr>} tags, achieving 100\% correctness with zero operators. Completion length collapses to 8 tokens.
+    \item \textbf{Second-order reward hacking} (Exp 1--2): Even with complexity incentives, the model discovers formulaic identities (\texttt{(N-1)/1+1} and \texttt{(N+1)/1-1}) that satisfy both correctness and complexity constraints with a single memorized template.
+    \item \textbf{Syntax without semantics} (Exp 3): Without closeness-based reward shaping, the model learns rich expression syntax but produces numerically incorrect results.
+    \item \textbf{Phase transition collapse} (Wave 2): At closeness weight $\geq$1.3 or learning rate $\geq$1e-4, even models with the no-target reward collapse to identity hacks---the optimization pressure overwhelms the structural constraint. This reveals a \emph{sharp phase boundary} in reward space.
+    \item \textbf{Training duration collapse} (Wave 2): Running the best diversity config (div01) for 2 epochs instead of 1 dropped template diversity from 0.40 to 0.033. Given enough time, the model always converges to a template.
 \end{itemize}
 
 \subsection{Discussion}
@@ -387,34 +410,37 @@ Several aspects of the results merit discussion:
 
 \textbf{Reward hacking is multi-layered, but solvable.} Na\"ive reward design leads directly to trivial solutions, and each added constraint opens a new exploit---until enough constraints force genuine reasoning. The critical breakthrough was Experiment 4's \emph{no-target reward}, which bans the target number from the expression. This single constraint, combined with closeness and complexity rewards, produced diverse decompositions and the first evidence of genuine arithmetic reasoning (e.g., independently discovering \texttt{2\^{}8=256}).
 
-\textbf{Anti-trivial rewards are more effective than high complexity weights.} Experiment 2 (explicit penalty for identity expressions) outperformed Experiment 1 (high complexity weight) in producing concise, correct, non-trivial expressions. The penalty creates a clear gradient \emph{away} from the trivial solution, while a high complexity weight merely offers an incentive that competes with the easier correctness path.
+\textbf{The diversity-correctness Pareto frontier.} Our 13-experiment sweep revealed a nearly inverse relationship between expression diversity and correctness. The frontier (Table~\ref{tab:pareto}) shows that configurations cluster into three regimes: (1) high diversity / low correctness (template ratio $>$0.3, correctness $<$15\%), (2) the sweet spot (template ratio $\approx$0.3, correctness $\approx$72\%), and (3) template collapse (template ratio $<$0.05, correctness $>$85\%). The key to reaching regime (2) was \emph{reducing} correctness weight from 2.0 to 1.0---counterintuitively, less optimization pressure on the primary objective produced better overall results.
 
-\textbf{Reward shaping is essential for sparse-reward tasks.} Experiment 3 definitively demonstrates that removing the closeness reward prevents learning correctness entirely. Interestingly, Exp~3 produced the most \emph{diverse} and \emph{creative} expressions---but none were correct. The closeness signal acts as a \emph{potential-based reward shaping} function, providing a smooth gradient toward the correct answer that the binary correctness reward alone cannot provide for a 350M model.
+\textbf{Structural constraints outperform reward incentives.} Adding complexity weight or anti-trivial penalties (reward-level incentives) failed to prevent template collapse. The no-target reward (a structural constraint banning specific output patterns) was the only intervention that produced genuine diversity. This suggests that for RL-trained language models, \emph{what you forbid} matters more than \emph{what you reward}.
 
-\textbf{Architecture considerations.} LFM2's hybrid architecture---with its convolutional blocks for local pattern recognition and attention for long-range dependencies---proved fully compatible with GRPO training. The model's rapid convergence (within 50 steps for the baseline, $\sim$100 steps for Exp~1--2) suggests the conv-attention hybrid can efficiently capture arithmetic patterns.
+\textbf{Sharp phase transitions in reward space.} The model exhibits bistable behavior: small changes in closeness weight (1.0 $\to$ 1.3) cause an abrupt transition from diverse exploration to single-template collapse. Similarly, doubling the learning rate or training for one additional epoch triggers the same collapse. This suggests the reward landscape has sharp basins of attraction---once the model discovers an exploit, gradient descent rapidly converges to it.
 
-\textbf{Implications for RL alignment.} Our findings echo broader concerns in RLHF/RLAIF research: models under optimization pressure find the \emph{easiest} way to satisfy reward criteria, not the \emph{intended} way. The progression from trivial $\to$ formulaic $\to$ syntactic-only behavior mirrors reward hacking phenomena observed in much larger models.
+\textbf{Reward shaping is essential for sparse-reward tasks.} Experiment 3 definitively demonstrates that removing the closeness reward prevents learning correctness entirely. The closeness signal acts as a \emph{potential-based reward shaping} function, providing a smooth gradient toward the correct answer that the binary correctness reward alone cannot provide for a 350M model.
+
+\textbf{Implications for RL alignment.} Our findings echo broader concerns in RLHF/RLAIF research: models under optimization pressure find the \emph{easiest} way to satisfy reward criteria, not the \emph{intended} way. The progression from trivial $\to$ formulaic $\to$ syntactic-only $\to$ genuinely diverse behavior required four layers of constraints, mirroring the ``whack-a-mole'' dynamic observed in alignment research at scale.
 
 % ============================================================================
 \section{Conclusion}
 \label{sec:conclusion}
 
-This project demonstrates that Group Relative Policy Optimization can teach a small, non-transformer language model to generate valid mathematical expressions for target numbers. Through systematic ablation of reward components, we identified three key findings:
+This project demonstrates that GRPO can teach a 350M-parameter non-transformer model to generate mathematical expressions for target numbers, and that the reward design challenge is far more interesting than the model training itself. Through 13 experiments across two systematic sweeps, we identified four key findings:
 
 \begin{enumerate}
-    \item \textbf{Reward hacking is multi-layered, but solvable.} The same 350M model progresses from trivially correct (baseline), to formulaically correct (Exp~1--2), to syntactically rich but incorrect (Exp~3), to genuinely diverse and close (Exp~4). The no-target reward was the critical constraint that forced real decomposition, producing 6$\times$ more template diversity and emergent arithmetic behavior.
-    \item \textbf{Diversity requires structural constraints.} Reward-level incentives alone (complexity weight, anti-trivial penalty) are insufficient to prevent template collapse. Structural constraints that ban specific output patterns (no-target reward) are needed to force genuine solution diversity.
-    \item \textbf{Reward shaping is essential for sparse-reward RL on small models.} Removing the closeness reward (Exp~3) completely prevented learning correctness, even with strong complexity incentives. This confirms that auxiliary dense reward signals are critical when the primary reward is binary.
-    \item \textbf{Novel architectures are RL-compatible.} LFM2's hybrid conv-attention design works seamlessly with standard GRPO training via TRL and LoRA, converging within 50--100 steps across all configurations.
+    \item \textbf{Reward hacking is multi-layered, but solvable.} The same model progresses from trivial identity (baseline), to formulaic hack (Exp~1--2), to syntax without semantics (Exp~3), to genuinely diverse decomposition (Exp~4). Each layer of hacking required a corresponding structural constraint to overcome.
+    \item \textbf{Structural constraints beat reward incentives.} The no-target reward---banning the target number from expressions---was the critical breakthrough. Reward-level incentives (complexity weight, anti-trivial penalty) only shifted \emph{which} template the model converged to; structural constraints forced genuine \emph{diversity}.
+    \item \textbf{A sharp phase transition governs the diversity-correctness tradeoff.} Small changes in reward weights (closeness 1.0$\to$1.3) or training dynamics (1$\to$2 epochs, 5e-5$\to$1e-4 lr) trigger abrupt collapse from diverse exploration to single-template convergence. The optimal operating point (correctness=1.0, closeness=0.5) achieves 30\% template diversity with 71.7\% correctness.
+    \item \textbf{Reward shaping is essential for sparse-reward RL on small models.} The closeness reward is the gradient bridge between ``random noise'' and ``correct answer.'' Without it, the model cannot learn correctness regardless of other reward signals.
 \end{enumerate}
 
 \subsection{Future Work}
 
 \begin{itemize}
-    \item \textbf{Curriculum learning}: Progressively increase target difficulty during training rather than using a fixed distribution.
-    \item \textbf{Chain-of-thought}: Allow the model to reason step-by-step before producing the final expression.
-    \item \textbf{Architecture comparison}: Compare LFM2 against a similarly-sized transformer (e.g., Qwen3-0.6B) to isolate architectural effects.
-    \item \textbf{Deployment}: Package the fine-tuned model as a lightweight API or web demo (optional extra credit component).
+    \item \textbf{Diversity reward}: Directly penalize repeated expression \emph{structures} within a GRPO group, rather than relying on indirect structural constraints.
+    \item \textbf{Banned subexpressions}: Extend the no-target approach to ban degenerate patterns like \texttt{/1}, \texttt{*1}, \texttt{+0}, closing additional exploit paths.
+    \item \textbf{Curriculum learning}: Start with easy targets (powers of 2, round numbers with obvious decompositions), then introduce harder targets progressively.
+    \item \textbf{Architecture comparison}: Compare LFM2 against a similarly-sized transformer (e.g., Qwen3-0.6B) to isolate whether the hybrid architecture's local pattern recognition offers advantages for arithmetic expressions.
+    \item \textbf{Scaling}: Test whether larger LFM2 variants (700M, 1.2B) can cross the diversity-correctness tradeoff barrier.
 \end{itemize}
 
 % ============================================================================

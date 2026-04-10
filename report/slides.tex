@@ -172,7 +172,28 @@
     \centering
     \includegraphics[width=0.85\textwidth]{figures/reward_curves.pdf}
 
-    Models converge in $\sim$50--100 steps. Baseline hits 100\% correctness with trivial identity.
+    13 experiments across 2 waves. Sharp phase transition at closeness $\approx$ 1.3.
+\end{frame}
+
+% ---- SLIDE 7b: Pareto Frontier ----
+\begin{frame}{The Diversity-Correctness Pareto Frontier}
+    \centering
+    \small
+    \begin{tabular}{lccccc}
+        \toprule
+        \textbf{Config} & \textbf{Key} & \textbf{Tpl Ratio} & \textbf{Correct} & \textbf{Score} & \textbf{Leak} \\
+        \midrule
+        div01 & baseline & 0.400 & 2.5\% & 0.410 & 5\% \\
+        w2\_close\_1.0 & close$\uparrow$ & 0.300 & 11.7\% & 0.335 & 7\% \\
+        w2\_easy & easy only & 0.233 & 48.3\% & 0.346 & 23\% \\
+        \textbf{w2\_low\_correct} & \textbf{corr=1.0} & \textbf{0.300} & \textbf{71.7\%} & \textbf{0.515} & \textbf{7\%} \\
+        div05\_fast\_lr & lr=2e-4 & 0.050 & 85\% & 0.093 & 8\% \\
+        w2\_close\_1.3 & close=1.3 & 0.017 & 100\% & 0.034 & 100\% \\
+        \bottomrule
+    \end{tabular}
+
+    \vspace{0.5em}
+    \textbf{Key insight}: Reducing correctness pressure from 2.0 $\to$ 1.0 unlocks diversity.
 \end{frame}
 
 % ---- SLIDE 8: Examples ----
