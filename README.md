@@ -20,7 +20,6 @@ RL fine-tuning of [LFM2-350M](https://huggingface.co/LiquidAI/LFM2-350M) (Liquid
 │   ├── report.tex     # LaTeX report (5-7 pages)
 │   ├── references.bib # Bibliography
 │   └── figures/       # Generated figures
-├── notebooks/         # EDA and analysis notebooks
 └── output/            # Training checkpoints and eval results
 ```
 
