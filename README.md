@@ -11,10 +11,11 @@ RL fine-tuning of [LFM2-350M](https://huggingface.co/LiquidAI/LFM2-350M) (Liquid
 ```
 ├── src/
 │   ├── dataset.py     # Dataset generation (curriculum-distributed targets)
-│   ├── reward.py      # Reward functions (correctness, closeness, format, complexity)
-│   ├── train.py       # GRPO training script
+│   ├── reward.py      # Reward functions (correctness, closeness, format, complexity, no-target)
+│   ├── train.py       # GRPO training script (configurable reward weights, anti-trivial, no-target)
 │   ├── eval.py        # Evaluation and metrics
-│   └── plot.py        # Report figure generation
+│   ├── diversity.py   # Template diversity analysis
+│   └── plot.py        # All report figure generation (eval-based + cross-experiment)
 ├── report/
 │   ├── report.tex     # LaTeX report (5-7 pages)
 │   ├── references.bib # Bibliography

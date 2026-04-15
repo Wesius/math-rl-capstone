@@ -4,16 +4,26 @@ GRPO training script for the math expression task.
 Trains LFM2-350M (Liquid AI's hybrid conv+attention model) to generate
 math expressions that evaluate to target numbers using Group Relative
 Policy Optimization.
+
+Supports configurable reward weights, anti-trivial mode, and no-target constraints.
 """
 
 import argparse
+import json
 
 import torch
 from peft import LoraConfig
 from trl import GRPOConfig, GRPOTrainer
 
 from src.dataset import build_dataset, build_eval_dataset
-from src.reward import closeness_reward, complexity_reward, correctness_reward, format_reward
+from src.reward import (
+    closeness_reward,
+    complexity_reward,
+    correctness_reward,
+    format_reward,
+    no_target_reward,
+    nontrivial_reward,
+)
 
 
 # LoRA targets for LFM2 — the model uses a hybrid architecture with
@@ -52,7 +62,25 @@ def main():
     parser.add_argument("--no-wandb", action="store_true", help="Disable wandb logging")
     parser.add_argument("--no-bf16", action="store_true", help="Disable bfloat16")
     parser.add_argument("--use-vllm", action="store_true", help="Use vLLM for generation")
+    parser.add_argument(
+        "--reward-weights",
+        type=str,
+        default="[2.0, 0.5, 0.3, 0.2]",
+        help="JSON list of weights: [correctness, closeness, format, complexity, (ban-trivial), (no-target)]",
+    )
+    parser.add_argument(
+        "--ban-trivial",
+        action="store_true",
+        help="Add nontrivial reward that penalizes single-number expressions",
+    )
+    parser.add_argument(
+        "--no-target",
+        action="store_true",
+        help="Add reward that penalizes expressions containing the target number",
+    )
     args = parser.parse_args()
+
+    weights = json.loads(args.reward_weights)
 
     # Build datasets
     print("Building datasets...")
@@ -71,6 +99,21 @@ def main():
         bias="none",
     )
 
+    # Build reward functions and weights
+    reward_funcs = [correctness_reward, closeness_reward, format_reward, complexity_reward]
+    reward_weights = list(weights[:4])
+
+    if args.ban_trivial:
+        reward_funcs.append(nontrivial_reward)
+        reward_weights.append(weights[4] if len(weights) > 4 else 1.0)
+
+    if args.no_target:
+        reward_funcs.append(no_target_reward)
+        idx = 5 if args.ban_trivial else 4
+        reward_weights.append(weights[idx] if len(weights) > idx else 0.5)
+
+    use_bf16 = not args.no_bf16 and torch.cuda.is_available() and torch.cuda.is_bf16_supported()
+
     # GRPO config
     training_args = GRPOConfig(
         output_dir=args.output_dir,
@@ -81,17 +124,15 @@ def main():
         learning_rate=args.lr,
         lr_scheduler_type="cosine",
         warmup_steps=50,
-        bf16=not args.no_bf16 and torch.cuda.is_available() and torch.cuda.is_bf16_supported(),
-        fp16=not (not args.no_bf16 and torch.cuda.is_available() and torch.cuda.is_bf16_supported()) and torch.cuda.is_available(),
+        bf16=use_bf16,
+        fp16=not use_bf16 and torch.cuda.is_available(),
         logging_steps=args.logging_steps,
         save_steps=args.save_steps,
         eval_strategy="steps",
         eval_steps=args.eval_steps,
         num_generations=args.num_generations,
         max_completion_length=args.max_completion_length,
-        # Reward weighting: correctness dominates, closeness helps shape gradient,
-        # format and complexity are minor bonuses
-        reward_weights=[2.0, 0.5, 0.3, 0.2],
+        reward_weights=reward_weights,
         log_completions=True,
         num_completions_to_print=3,
         seed=args.seed,
@@ -102,30 +143,27 @@ def main():
     )
 
     # Initialize trainer
-    print(f"Loading model: {args.model}")
+    print("Starting GRPO training...")
+    print(f"  Model:         {args.model}")
+    print(f"  LoRA rank:     {args.lora_rank}")
+    print(f"  Batch:         {args.batch_size} x {args.grad_accum} grad accum")
+    print(f"  Generations:   {args.num_generations} per prompt")
+    print(f"  LR:            {args.lr}")
+    print(f"  Epochs:        {args.epochs}")
+    print(f"  Reward weights: {reward_weights}")
+    print(f"  Ban trivial:   {args.ban_trivial}")
+    print(f"  No target:     {args.no_target}")
+    print(f"  Output:        {args.output_dir}")
+    print()
+
     trainer = GRPOTrainer(
         model=args.model,
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-        reward_funcs=[
-            correctness_reward,
-            closeness_reward,
-            format_reward,
-            complexity_reward,
-        ],
+        reward_funcs=reward_funcs,
         peft_config=peft_config,
     )
-
-    print("Starting GRPO training...")
-    print(f"  Model:       {args.model}")
-    print(f"  LoRA rank:   {args.lora_rank}")
-    print(f"  Batch:       {args.batch_size} x {args.grad_accum} grad accum")
-    print(f"  Generations: {args.num_generations} per prompt")
-    print(f"  LR:          {args.lr}")
-    print(f"  Epochs:      {args.epochs}")
-    print(f"  Output:      {args.output_dir}")
-    print()
 
     trainer.train()
 
