@@ -1,6 +1,6 @@
 \documentclass[11pt, letterpaper]{article}
 
-\usepackage[margin=1in]{geometry}
+\usepackage[margin=1in, headheight=15pt]{geometry}
 \usepackage{graphicx}
 \usepackage{amsmath, amssymb}
 \usepackage{booktabs}
@@ -12,12 +12,19 @@
 \usepackage{subcaption}
 \usepackage[backend=biber, style=numeric, sorting=none]{biblatex}
 \addbibresource{references.bib}
+\usepackage{fancyhdr}
+\usepackage{titling}
+
+% RE Colors
+\definecolor{regreen}{HTML}{1B5E20}
+\definecolor{regreenlight}{HTML}{2E7D32}
+\definecolor{regray}{HTML}{4A4A4A}
 
 \hypersetup{
     colorlinks=true,
-    linkcolor=blue!60!black,
-    citecolor=blue!60!black,
-    urlcolor=blue!60!black,
+    linkcolor=regreen,
+    citecolor=regreen,
+    urlcolor=regreenlight,
 }
 
 \lstset{
@@ -33,6 +40,16 @@
     captionpos=b,
 }
 
+% Header/footer branding
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{regray}{Ransom Everglades School}}
+\fancyhead[R]{\small\textcolor{regray}{Advanced Machine Learning}}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{regreen}\leaders\hrule height \headrulewidth\hfill}}
+\fancypagestyle{plain}{\fancyhf{}\fancyfoot[C]{\thepage}\renewcommand{\headrulewidth}{0pt}}
+
 \title{%
     \textbf{Teaching a Tiny Non-Transformer Model Arithmetic Reasoning via Reinforcement Learning} \\[0.5em]
     \large GRPO Fine-Tuning of LFM2-350M for Mathematical Expression Generation
@@ -42,7 +59,21 @@
 
 \begin{document}
 
-\maketitle
+% Custom title page
+\begin{titlepage}
+\centering
+\vspace*{1.5cm}
+\includegraphics[width=2.5cm]{figures/re_logo.jpg}\\[0.8cm]
+{\color{regreen}\rule{\textwidth}{1.5pt}}\\[0.6cm]
+{\huge\bfseries Teaching a Tiny Non-Transformer Model\\Arithmetic Reasoning via\\Reinforcement Learning\\[0.5em]}
+{\Large GRPO Fine-Tuning of LFM2-350M for\\Mathematical Expression Generation}\\[0.6cm]
+{\color{regreen}\rule{\textwidth}{1.5pt}}\\[1.2cm]
+{\Large Wes Griffin}\\[0.4cm]
+{\large\textcolor{regray}{Ransom Everglades School\\Advanced Machine Learning}}\\[0.4cm]
+{\large April 2026}\\[2cm]
+\vfill
+{\small\textcolor{regray}{Coconut Grove, Miami, FL}}
+\end{titlepage}
 
 \begin{abstract}
 We use Group Relative Policy Optimization (GRPO) to teach Liquid AI's LFM2-350M---a 354M-parameter hybrid convolutional-attention model---to generate mathematical expressions evaluating to target numbers. Through 13 experiments systematically varying reward components, we discover that the model exhibits multi-layered reward hacking: trivial identity, formulaic templates, and syntax-without-semantics, each requiring a corresponding structural constraint to overcome. A \emph{no-target reward} that bans the target number from appearing in expressions proves critical for inducing genuine arithmetic decomposition (e.g., the model independently discovers $2^8 = 256$). We map the diversity-correctness Pareto frontier, revealing a sharp phase transition in reward space: small changes in reward weights trigger abrupt collapse from diverse exploration to single-template convergence. The optimal configuration achieves 30\% template diversity with 71.7\% correctness, offering insights into reward design for RL-based language model training.
@@ -260,6 +291,24 @@ We found a \textbf{sharp phase transition}: below closeness weight $\approx$1.3,
 \label{fig:reward-curves}
 \end{figure}
 
+\vspace{1em}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.75\textwidth]{figures/reward_heatmap.pdf}
+\caption{Reward weight configurations across key experiments. The progression from Baseline to Best shows the incremental addition of structural constraints needed to overcome successive layers of reward hacking.}
+\label{fig:reward-heatmap}
+\end{figure}
+
+\vspace{1em}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{figures/completion_length.pdf}
+\caption{Mean completion length during training. The Baseline collapses to $\sim$8 tokens (just the target number in tags), while constrained configurations stabilize at $\sim$19--22 tokens, reflecting genuine multi-operator expressions.}
+\label{fig:completion-length}
+\end{figure}
+
 \subsection{Evaluation Results}
 
 \begin{figure}[H]
@@ -309,6 +358,22 @@ w2\_close\_1.3   & closeness=1.3       & 0.017 & 100\%   & 0.034 & 0.127 & 100\%
 \end{table}
 
 Table~\ref{tab:pareto} reveals the sharp phase transition in reward space. Configurations below closeness$\approx$1.3 maintain diverse expression strategies; above this threshold, the model collapses to a single template. The optimal tradeoff point (\textbf{w2\_low\_correct}) achieves this by reducing correctness weight from 2.0 to 1.0, giving the model room to explore diverse strategies while still learning to get most answers right.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{figures/pareto_frontier.pdf}
+\caption{Diversity--correctness Pareto frontier. Each point represents one experimental configuration. Color encodes combined score (template ratio $\times$ (1 + correctness)). The optimal configuration (circled in green) balances both objectives; the red zone marks template collapse.}
+\label{fig:pareto}
+\end{figure}
+
+\vspace{1em}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{figures/phase_transition.pdf}
+\caption{Sharp phase transition as closeness weight increases. Template diversity (blue) drops abruptly from 0.30 to 0.017 between closeness weights 1.0 and 1.3, while correctness (red) jumps to 100\%---accompanied by 100\% target leakage, indicating the model rediscovered identity hacks.}
+\label{fig:phase-transition}
+\end{figure}
 
 \subsection{Qualitative Analysis}
 \label{sec:qualitative}
@@ -381,6 +446,15 @@ Correctness            & 100\% & 99--100\% & 2.5\% & 71.7\% \\
 \end{tabular}
 \end{table}
 
+\vspace{1em}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{figures/template_dominance.pdf}
+\caption{Template dominance (fraction of outputs matching the most common template) vs.\ correctness across experiment stages. The Baseline and Exp~1--2 achieve high correctness via a single degenerate template; Exp~4 and the optimized config break this pattern.}
+\label{fig:template-dominance}
+\end{figure}
+
 The baseline and Experiments 1--2 are entirely single-template: every output follows the same structural pattern. Experiment 4 produces 16 unique templates out of 40 samples (20 targets $\times$ 2 samples each), with the most common covering only 12.5\% of outputs. The optimized configuration (w2\_low\_correct) trades some diversity for dramatically improved correctness (71.7\%), maintaining 18 unique templates across 60 samples.
 
 Notably, the baseline's high edit distance (0.83) is misleading---it reflects varying \emph{digit lengths} (\texttt{7} vs.\ \texttt{9999}), not structural diversity. Experiments 1--2 have low edit distance (0.14) because their outputs are nearly identical strings differing only in the embedded target number.
@@ -404,6 +478,7 @@ The primary failure modes observed across 13 configurations:
     \item \textbf{Training duration collapse} (Wave 2): Running the best diversity config (div01) for 2 epochs instead of 1 dropped template diversity from 0.40 to 0.033. Given enough time, the model always converges to a template.
 \end{itemize}
 
+\clearpage
 \subsection{Discussion}
 
 Several aspects of the results merit discussion:

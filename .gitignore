@@ -21,6 +21,9 @@ report/*.out
 report/*.run.xml
 report/*.synctex.gz
 report/*.toc
+report/*.nav
+report/*.snm
+report/*.vrb
 
 # OS
 .DS_Store
